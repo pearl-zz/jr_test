@@ -1,0 +1,161 @@
+describe("local callbacks", function() {
+  var bob; 
+  var bobs_post;
+  
+  describe("counts", function() {
+  
+    var on_new_calls;
+    var on_update_calls;
+    var on_remove_calls;
+  
+    // We want to count how many times each callback is invoked
+    beforeEach(function() {
+      resetLocalData();
+      bob = Account.find_local(1);
+      bobs_post = Post.find_local(1);
+      bobs_post.message("foo");
+      
+      // Callback spys
+      new_callback = jasmine.createSpy();
+      update_callback = jasmine.createSpy();
+      remove_callback = jasmine.createSpy();
+    
+      // Set callback
+      bobs_post.set_update_comment_handler(update_callback);
+      bobs_post.set_new_comment_handler(new_callback);
+      bobs_post.set_remove_comment_handler(remove_callback);
+    });
+    
+    it("should call update handler once", function() {
+      var comment = bobs_post.get_comment_by_id(1);
+      var comment_calls = 0;
+      comment.set_update_handler(function() {
+        comment_calls++;
+        expect(comment.message()).toEqual('bar');
+      });
+      comment.message('bar');
+      expect(update_callback.callCount).toEqual(1);
+      expect(new_callback.callCount).toEqual(0);
+      expect(remove_callback.callCount).toEqual(0);
+      expect(comment_calls).toEqual(1);
+    });
+    
+    it("should call new handler once", function() {
+      var new_comment = Comment.create({message: "comment_foo"});
+      bobs_post.add_comment(new_comment);
+      
+      expect(update_callback.callCount).toEqual(0);
+      expect(new_callback.callCount).toEqual(1);
+      expect(remove_callback.callCount).toEqual(0);
+    })
+    
+    it("should call remove handler once", function() {
+      var comment = bobs_post.get_comment_by_id(1);
+      bobs_post.remove_comment(comment);
+      
+      expect(update_callback.callCount).toEqual(0);
+      expect(new_callback.callCount).toEqual(0);
+      expect(remove_callback.callCount).toEqual(1);
+    })
+    
+    it("should call update once after mass-assign", function() {
+      var bob_updates = 0;
+      bob.set_update_handler(function() {
+        bob_updates++;
+        expect(bob.name()).toEqual('bill');
+        expect(bob.login()).toEqual('billy');
+        expect(bob.email()).toEqual('billy@example.com');
+      })
+      bob.update({
+        name: 'bill',
+        login: 'billy',
+        email: 'billy@example.com'
+      });
+      expect(bob_updates).toEqual(1);
+    })
+    
+    it("should call all handlers", function() {
+      var c_1 = bobs_post.get_comment_by_id(1);
+      c_1.message('changed_1')   // update++
+      bobs_post.remove_comment(c_1); // remove++
+      
+      var c_2 = bobs_post.get_comment_by_id(2);
+      c_2.message('changed_2')  // update++
+      
+      var c_3 = Comment.create({message: 'something'});
+      bobs_post.add_comment(c_3)  // new++
+      
+      var c_4 = Comment.create({message: 'something_else'});
+      bobs_post.add_comment(c_4)  // new++
+      
+      c_3.update({message: 'something_elser'}); // update++
+      
+      expect(update_callback.callCount).toEqual(3);
+      expect(new_callback.callCount).toEqual(2);
+      expect(remove_callback.callCount).toEqual(1);
+    })
+    
+    
+  });
+    
+  describe("data", function() {
+
+    beforeEach(function() {
+      resetLocalData();
+      bob = Account.find_local(1);
+      bobs_post = Post.find_local(1);
+      bobs_post.message("foo");
+    });
+
+    it("should update association callbacks", function() {
+      // Setup our callback
+      var hacky_assert = 0;
+      expect(bobs_post.message()).toEqual("foo");
+      bob.set_update_post_handler(function(new_post) {
+        expect(new_post.message()).toEqual("bar");
+        hacky_assert++;
+      });
+    
+      // Invoke & Expect
+      bobs_post.message('bar')
+      expect(hacky_assert).toEqual(1);
+    })
+  
+    it("should invoke on_new callbacks", function() {
+      // Setup our callback
+      var hacky_assert = 0;
+      bobs_post.set_new_comment_handler(function(new_comment) {
+        expect(new_comment.message()).toEqual('comment_foo')
+        expect(bobs_post.message()).toEqual('foo')
+        hacky_assert++;
+      })
+    
+      // Create the comment 
+      var new_comment = Comment.create({
+        message: "comment_foo"
+      });
+      bobs_post.add_comment(new_comment)
+    
+      // Expect
+      expect(hacky_assert).toEqual(1);
+    })
+  
+    it("should invoke on_remove callbacks", function() {
+      // Setup our callback
+      var hacky_assert = 0;
+      var comment = Comment.find_local(1);
+      bobs_post.set_remove_comment_handler(function(comment) {
+        hacky_assert++;
+        expect(comment.id()).toEqual(1);
+      })
+
+      // Invoke 
+      bobs_post.remove_comment(comment);
+    
+      // Expect
+      expect(hacky_assert).toEqual(1);
+      expect(bobs_post.get_comment_by_id(1)).toBeNull();
+    })
+  
+  });
+});

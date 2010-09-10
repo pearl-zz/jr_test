@@ -1,0 +1,28 @@
+describe("basic data", function() {
+  
+  it("should include static models", function() {
+    expect(window.Account).toBeDefined();
+    expect(window.Comment).toBeDefined();
+    expect(window.Post).toBeDefined();
+    expect(window.SecretModel).not.toBeDefined();
+  });
+
+  it("should include first-order instances", function() {
+    expect(Account.find_local(1)).not.toBeNull();
+    expect(Account.find_local(2)).not.toBeNull();
+  });
+
+  it("should include second-order instances", function() {
+    expect(Post.get_by_account_id(1)).not.toBeNull();
+    expect(Post.get_by_account_id(1).length).toEqual(1);
+    expect(Post.get_by_account_id(2)).not.toBeNull();
+    expect(Post.get_by_account_id(2).length).toEqual(1);
+  });
+
+  it("should include third-order instances", function() {
+    expect(Comment.get_by_account_id(1)).not.toBeNull();
+    expect(Comment.get_by_account_id(1).length).toEqual(2);
+    expect(Comment.get_by_account_id(2)).not.toBeNull();
+    expect(Comment.get_by_account_id(2).length).toEqual(2);
+  });    
+})

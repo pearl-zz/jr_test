@@ -1,13 +1,7 @@
 JrTest::Application.routes.draw do
-  resources :secret_models
 
-  resources :comments
-
-  resources :posts
-
-  resources :accounts
-  
   match ':controller(/:action(/:id(.:format)))'
+  root :to => "page#index"
   
   # The priority is based upon order of creation:
   # first created -> highest priority.

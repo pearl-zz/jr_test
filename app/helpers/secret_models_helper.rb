@@ -1,2 +1,0 @@
-module SecretModelsHelper
-end

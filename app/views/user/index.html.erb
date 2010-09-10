@@ -1,0 +1,141 @@
+<script type="text/javascript" src="/jr/sjs"></script>
+
+<h1>
+  <a id='user_name' href="#"></a>
+</h1>
+<h3>
+  <a id='user_login' href="#"></a>
+</h3>
+<h3>
+  <a id='user_email' href="#"></a>
+</h3>
+
+<div id='posts_container'>
+  <a id='new_post' href="#">New Post</a>
+</div>
+
+<hr/>
+<a id='save' href="#">Save Changes</a>
+
+
+<script>
+
+  jr.parse_bundle(<%=raw(@account.jr_bundle.to_json)%>)
+  jr.start_polling();
+
+  var user = Account.find_local(1);
+  var cl = function(m) {if (window.console) console.log(m);}
+  
+  // Invoked when the user model is updated
+  user.set_update_handler(function() {
+    cl('user.update_handler');
+    
+    // Note that these getters are automatically greated by JR. They can be filtered on the Rails side, in the
+    // Rails model declaration. 
+    $('#user_name').text(user.name());
+    $('#user_login').text(user.login());
+    $('#user_email').text(user.email());
+  });
+
+  // Invoked when the user has a new post
+  user.set_new_post_handler(function(post) {
+    cl('user.new_post_handler: ' + post)
+    
+    // Add a new div with our post in it. The cid() is a unique client-side identifier for the model. 
+    var $post = $("<div style='border:1px solid black' id='" + post.cid() + "'></div>");
+    $('#posts_container').append($post);
+    $post.append("<p class='message'>" + post.message() + "</p>")
+    $post.append( $("<a href='' class='remove_post'>Remove</p>").data('cid',post.cid()) )
+    $post.append(" | ");
+    $post.append( $("<a href='' class='update_post'>Update</p>").data('cid',post.cid()) )
+    $post.append("<div class='comments'></div>")
+    
+    // Wire up some more callbacks 
+    post.set_update_handler(function(post) {
+      cl('post.update')
+      $('.message', '#'+post.cid()).text(post.message());
+    });
+    
+    post.set_destroy_handler(function(post) {
+      cl('post.destroy')
+      $('#'+post.cid()).remove();
+    });
+    
+    // TODO: do comments later. you get the point. 
+    // // This callback will be invoked every time a comment is added to our post. 
+    // post.set_new_comment_handler(function(comment) {
+    //   cl('user.new_comment_handler: ' + comment)
+    //   $('.comments', $post).append("<p class='comment' id='" + comment.cid() + "'>" + comment.message() + "</p>")
+    // });
+    // 
+    // // This is invoked every time an existing callback belonging to our post is updated. 
+    // post.set_update_comment_handler(function(comment) {
+    //   cl('user.update_comment_handler: ' + comment)
+    //   $('#'+comment.cid()).text(comment.message());
+    // });
+    // 
+    // // This is invoked when the comment is either destroyed or removed from the post collection. 
+    // post.set_remove_comment_handler(function(comment) {
+    //   cl('user.remove_comment_handler: ' + comment)
+    //   $('#'+comment.cid()).remove();
+    // });
+    
+  });
+  
+  
+  
+  // Fire the initial callback
+  user.on_update();
+  // TODO: need to find a way to initially invoke the association callbacks
+  
+
+</script>
+
+
+<script>
+  
+  // UI Commands
+  
+  $('#user_name').click(function() {
+    user.name(window.prompt('New name') || user.name())
+    return false;
+  });
+  
+  $('#user_email').click(function() {
+    user.name(window.prompt('New email') || user.email())
+    return false;
+  });
+  
+  $('#user_login').click(function() {
+    user.login(window.prompt('New login') || user.login())
+    return false;
+  });
+  
+  $('#save').click(function() {
+    jr.commit();
+  });
+  
+  $('.remove_post').live('click', function() {
+    var post = Post.get_by_cid($(this).data('cid'))
+    if (post) post.destroy();
+    return false;
+  });
+  
+  $('.update_post').live('click', function() {
+    var post = Post.get_by_cid($(this).data('cid'))
+    if (!post) return false;
+    var message = window.prompt('Post contents', post.message()) || '';
+    post.message(message);
+    return false;
+  });
+  
+  $('#new_post').click(function() {
+    var message = window.prompt('Post contents', 'JR is AWESOME') || '';
+    var post = Post.create({message: message});
+    user.add_post(post);
+  });
+  
+</script>
+
+
+
