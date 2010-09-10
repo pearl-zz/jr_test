@@ -1,0 +1,524 @@
+<link rel="stylesheet" type="text/css" href="/javascripts/jasmine/lib/jasmine-1.0.0.rc1/jasmine.css">
+<script type="text/javascript" src="/javascripts/jasmine/lib/jasmine-1.0.0.rc1/jasmine.js"></script>
+<script type="text/javascript" src="/javascripts/jasmine/lib/jasmine-1.0.0.rc1/jasmine-html.js"></script>
+
+
+<script type="text/javascript" src="/jr/sjs"></script>
+
+
+<script type="text/javascript">
+
+// Setup JR
+//ModelUtils.adapter.register_new_bundle_callback();
+//ModelUtils.adapter.parse_bundle(<%=raw(@bob.jr_bundle.to_json)%>);
+
+
+function resetData() {
+  // Note: Synchronous. 
+  $.ajax({
+    async: false, 
+    url: '/test/reset_bob',
+    success: function(bundle) {
+      ModelUtils.adapter.reset_all();
+      ModelUtils.adapter.parse_bundle(bundle);
+    }
+  })
+};
+
+function resetLocalData() {
+  var bundle = <%=raw(@bob.jr_bundle.to_json)%>;
+  ModelUtils.adapter.reset_all();
+  ModelUtils.adapter.parse_bundle(bundle);
+};
+
+resetData();
+
+
+describe("Jr", function() {
+
+  xdescribe("correct data", function() {
+    
+    it("should include static models", function() {
+      expect(window.Account).toBeDefined();
+      expect(window.Comment).toBeDefined();
+      expect(window.Post).toBeDefined();
+      expect(window.SecretModel).not.toBeDefined();
+    });
+
+    it("should include first-order instances", function() {
+      expect(Account.find_local(1)).not.toBeNull();
+      expect(Account.find_local(2)).not.toBeNull();
+    });
+
+    it("should include second-order instances", function() {
+      expect(Post.get_by_account_id(1)).not.toBeNull();
+      expect(Post.get_by_account_id(1).length).toEqual(1);
+      expect(Post.get_by_account_id(2)).not.toBeNull();
+      expect(Post.get_by_account_id(2).length).toEqual(1);
+    });
+
+    it("should include third-order instances", function() {
+      expect(Comment.get_by_account_id(1)).not.toBeNull();
+      expect(Comment.get_by_account_id(1).length).toEqual(2);
+      expect(Comment.get_by_account_id(2)).not.toBeNull();
+      expect(Comment.get_by_account_id(2).length).toEqual(2);
+    });    
+  })
+  
+  
+  xdescribe("local callbacks", function() {
+    var bob; 
+    var bobs_post;
+    
+    describe("counts", function() {
+    
+      var on_new_calls;
+      var on_update_calls;
+      var on_remove_calls;
+    
+      // We want to count how many times each callback is invoked
+      beforeEach(function() {
+        resetLocalData();
+        bob = Account.find_local(1);
+        bobs_post = Post.find_local(1);
+        bobs_post.message("foo");
+        
+        // Callback spys
+        new_callback = jasmine.createSpy();
+        update_callback = jasmine.createSpy();
+        remove_callback = jasmine.createSpy();
+      
+        // Set callback
+        bobs_post.set_update_comment_handler(update_callback);
+        bobs_post.set_new_comment_handler(new_callback);
+        bobs_post.set_remove_comment_handler(remove_callback);
+      });
+      
+      it("should call update handler once", function() {
+        var comment = bobs_post.get_comment_by_id(1);
+        var comment_calls = 0;
+        comment.set_update_handler(function() {
+          comment_calls++;
+          expect(comment.message()).toEqual('bar');
+        });
+        comment.message('bar');
+        expect(update_callback.callCount).toEqual(1);
+        expect(new_callback.callCount).toEqual(0);
+        expect(remove_callback.callCount).toEqual(0);
+        expect(comment_calls).toEqual(1);
+      });
+      
+      it("should call new handler once", function() {
+        var new_comment = Comment.create({message: "comment_foo"});
+        bobs_post.add_comment(new_comment);
+        
+        expect(update_callback.callCount).toEqual(0);
+        expect(new_callback.callCount).toEqual(1);
+        expect(remove_callback.callCount).toEqual(0);
+      })
+      
+      it("should call remove handler once", function() {
+        var comment = bobs_post.get_comment_by_id(1);
+        bobs_post.remove_comment(comment);
+        
+        expect(update_callback.callCount).toEqual(0);
+        expect(new_callback.callCount).toEqual(0);
+        expect(remove_callback.callCount).toEqual(1);
+      })
+      
+      it("should call update once after mass-assign", function() {
+        var bob_updates = 0;
+        bob.set_update_handler(function() {
+          bob_updates++;
+          expect(bob.name()).toEqual('bill');
+          expect(bob.login()).toEqual('billy');
+          expect(bob.email()).toEqual('billy@example.com');
+        })
+        bob.update({
+          name: 'bill',
+          login: 'billy',
+          email: 'billy@example.com'
+        });
+        expect(bob_updates).toEqual(1);
+      })
+      
+      it("should call all handlers", function() {
+        var c_1 = bobs_post.get_comment_by_id(1);
+        c_1.message('changed_1')   // update++
+        bobs_post.remove_comment(c_1); // remove++
+        
+        var c_2 = bobs_post.get_comment_by_id(2);
+        c_2.message('changed_2')  // update++
+        
+        var c_3 = Comment.create({message: 'something'});
+        bobs_post.add_comment(c_3)  // new++
+        
+        var c_4 = Comment.create({message: 'something_else'});
+        bobs_post.add_comment(c_4)  // new++
+        
+        c_3.update({message: 'something_elser'}); // update++
+        
+        expect(update_callback.callCount).toEqual(3);
+        expect(new_callback.callCount).toEqual(2);
+        expect(remove_callback.callCount).toEqual(1);
+      })
+      
+      
+    });
+      
+    describe("data", function() {
+
+      beforeEach(function() {
+        resetLocalData();
+        bob = Account.find_local(1);
+        bobs_post = Post.find_local(1);
+        bobs_post.message("foo");
+      });
+
+      it("should update association callbacks", function() {
+        // Setup our callback
+        var hacky_assert = 0;
+        expect(bobs_post.message()).toEqual("foo");
+        bob.set_update_post_handler(function(new_post) {
+          expect(new_post.message()).toEqual("bar");
+          hacky_assert++;
+        });
+      
+        // Invoke & Expect
+        bobs_post.message('bar')
+        expect(hacky_assert).toEqual(1);
+      })
+    
+      it("should invoke on_new callbacks", function() {
+        // Setup our callback
+        var hacky_assert = 0;
+        bobs_post.set_new_comment_handler(function(new_comment) {
+          expect(new_comment.message()).toEqual('comment_foo')
+          expect(bobs_post.message()).toEqual('foo')
+          hacky_assert++;
+        })
+      
+        // Create the comment 
+        var new_comment = Comment.create({
+          message: "comment_foo"
+        });
+        bobs_post.add_comment(new_comment)
+      
+        // Expect
+        expect(hacky_assert).toEqual(1);
+      })
+    
+      it("should invoke on_remove callbacks", function() {
+        // Setup our callback
+        var hacky_assert = 0;
+        var comment = Comment.find_local(1);
+        bobs_post.set_remove_comment_handler(function(comment) {
+          hacky_assert++;
+          expect(comment.id()).toEqual(1);
+        })
+
+        // Invoke 
+        bobs_post.remove_comment(comment);
+      
+        // Expect
+        expect(hacky_assert).toEqual(1);
+        expect(bobs_post.get_comment_by_id(1)).toBeNull();
+      })
+    
+    });
+  });
+  
+  
+  describe("remote", function() {
+    var save_wait = 1000;
+    var remote_get = function(model, id, field) {
+      return $.ajax({
+        url: "/test/get?model_name=" + model + "&id=" + id + "&field_name=" + field, 
+        async: false
+      }).responseText;
+    };
+    
+    var remote_update = function(model, id, field, value, async) {
+      $.ajax({
+        url: "/test/update?model_name=" + model + "&id=" + id + "&field_name=" + 
+             field + "&value=" + value,
+        async: async || true
+      })
+    };
+    
+    xdescribe("data", function() {
+      var bob;
+      var bobs_post;
+      
+      beforeEach(function() {
+        resetData();
+        bob = Account.find_local(1);
+        bobs_post = Post.find_local(1);
+        expect(bobs_post.message()).not.toEqual('foo');
+      })
+
+      it("should update server data", function() {
+        bobs_post.message('foo');
+        expect(remote_get('Post', 1, 'message')).not.toEqual('foo');
+        
+        runs(function() {
+          bobs_post.save();
+        });
+        waits(save_wait);
+        runs(function() {
+          expect(remote_get('Post', 1, 'message')).toEqual('foo');
+        });
+        
+      });
+      
+      xit("should invoke committed callback", function() {
+        var callback = jasmine.createSpy();
+
+        runs(function() {
+          bobs_post.set_committed_handler(callback);
+          bobs_post.message('foo');
+          expect(callback).not.toHaveBeenCalled();
+          bobs_post.save();
+        });        
+        waits(save_wait);
+        runs(function() {
+          expect(callback).toHaveBeenCalled();
+          expect(callback.callCount).toEqual(1);
+          expect(bob.id()).toEqual(1);
+        });
+
+      });
+      
+      xit("should assign server-id on new instance", function() {
+        var callback = jasmine.createSpy();
+        var bobs_new_post = Post.create({message: 'new_post'});
+        expect(bob.posts().length).toEqual(1);
+        bob.add_post(bobs_new_post);
+        bobs_new_post.set_committed_handler(callback);
+        
+        runs(function() {
+          expect(bobs_new_post.account_id()).toEqual(1);
+          expect(bobs_new_post.id()).not.toBeDefined();
+          expect(bobs_new_post.cid()).toBeDefined();
+          expect(bobs_new_post.message()).toEqual('new_post');
+          expect(bob.posts().length).toEqual(2);
+          expect(callback).not.toHaveBeenCalled();
+          bobs_post.save();
+        })
+        waits(save_wait);
+        runs(function() {
+          expect(callback).toHaveBeenCalled();
+          expect(bob.id()).toEqual(1);
+          expect(bobs_new_post.id()).toBeDefined();
+          expect(bobs_new_post.cid()).toBeDefined();
+          expect(bobs_new_post.message()).toEqual('new_post');
+          expect(bob.posts().length).toEqual(2);
+          expect(callback).toHaveBeenCalled();
+          expect(remote_get('Post', bobs_new_post.id(), 'message')).toEqual('new_post');
+        })
+
+      });
+      
+    });
+  
+    describe("polling", function() {
+      var bob;
+      var bobs_post;
+      var connect_wait = 300;
+      var propagate_wait = 4000;
+      var polling_iframes = [];
+    
+      var create_polling_iframe = function(id) {
+        var ifr = $('body').append('<iframe id="'+id+'" name="'+id+'" src="/test/poller"></iframe>');
+        polling_iframes.push(id);
+        return $('#'+id)[0].contentWindow;
+      }
+      var clear_polling_iframe = function(id) {
+        $('#'+id).remove();
+      };
+      var clear_all_polling_iframes = function() {
+        polling_iframes.each(function(id) {
+          clear_polling_iframe(id);
+        })
+      }
+      
+      var start_pollers = function(how_many, ary, wait) {
+        runs(function() {
+          for(var i=0;i<how_many;i++) {
+            ary.push(create_polling_iframe('ifr_'+i));
+          }          
+        });
+        waits(wait || propagate_wait)
+      }
+    
+      beforeEach(function() {
+        resetData();
+        bob = Account.find_local(1);
+        bobs_post = Post.find_local(1);
+      })
+      
+      afterEach(function() {
+        ModelUtils.adapter.stop_polling();
+        clear_all_polling_iframes();
+      })
+    
+      xit("should update async values", function() {
+        // Begin Polling
+        runs(function() {
+          ModelUtils.adapter.start_polling();
+        });
+        waits(connect_wait);
+    
+        // Invoke a change from the other end
+        runs(function() {
+          remote_update('Post', 1, 'message', 'foobar');
+        });
+    
+        // Let the change propagate and exepct
+        waits(propagate_wait);
+        runs(function() {
+          expect(bobs_post.message()).toEqual('foobar');
+        })
+      });
+    
+    
+      xit("should update multiple clients", function() {
+        // Begin Polling in our window and others
+        ModelUtils.adapter.start_polling();
+        var pollers = []; start_pollers(2, pollers);
+          
+        // Make sure they have pre-dirty data
+        runs(function() {
+          expect(pollers[0].Post.find_local(1).message()).not.toEqual('foobar');
+          expect(pollers[1].Post.find_local(1).message()).not.toEqual('foobar');
+        })
+    
+        // Invoke a change from the other end
+        runs(function() {
+          remote_update('Post', 1, 'message', 'foobar');
+        });
+    
+        // Make sure everybody sees our change. 
+        waits(propagate_wait);
+        runs(function() {
+          expect(bobs_post.message()).toEqual('foobar');
+          expect(pollers[0].Post.find_local(1).message()).toEqual('foobar');
+          expect(pollers[1].Post.find_local(1).message()).toEqual('foobar');
+        })
+        
+        // Let everybody startup again and send a new change
+        waits(1000);
+        runs(function() {
+          remote_update('Post', 1, 'message', 'baz');
+        });
+        
+        // Make sure they got the new updates
+        waits(propagate_wait);
+        runs(function() {
+          expect(bobs_post.message()).toEqual('baz');
+          expect(pollers[0].Post.find_local(1).message()).toEqual('baz');
+          expect(pollers[1].Post.find_local(1).message()).toEqual('baz');
+        })
+        
+        
+      });
+      
+      
+      xit("should not crash when browsers close", function() {
+        // Begin Polling in our window and others
+        var pollers = []; start_pollers(10, pollers, 10000);
+          
+        // Kill one browser
+        runs(function() {
+          clear_polling_iframe('ifr_9');
+        });
+    
+        // Make sure we can still see database values. (make sure server still running)
+        waits(1000);
+        runs(function() {
+          expect(remote_get('Post', 1, 'message')).toEqual('this is post_1')
+        });
+        
+        // Now, send an update from one of our pollers
+        runs(function() {
+          pollers[0].Post.find_local(1).message('changed');
+          pollers[0].Post.find_local(1).save();
+        });
+        
+        // Wait a bit and make sure everybody got the change. 
+        waits(propagate_wait);
+        runs(function() {
+          for(var i=0;i<9;i++) {
+            expect(pollers[i].Post.find_local(1).message()).toEqual('changed')
+          }
+        });
+        
+        // Now, kill another poller
+        runs(function() {
+          clear_polling_iframe('ifr_8');
+        });
+        
+        // Make sure we're still running
+        waits(1000);
+        runs(function() {
+          expect(remote_get('Post', 1, 'message')).toEqual('changed')
+        });
+
+      });
+      
+      it("should survive a stress test", function() {
+
+        // Begin Polling in our window and others
+        var number_of_pollers = 30;
+        var pollers = []; start_pollers(100, pollers, 25000);
+        
+        // Now, send an update from one of our pollers
+        runs(function() {
+          pollers[0].Post.find_local(1).message('changed');
+          pollers[0].Post.find_local(1).save();
+        });
+        
+        // Wait a bit and make sure everybody got the change. 
+        waits(6000);
+        runs(function() {
+          for(var i=0;i<number_of_pollers;i++) {
+            expect(pollers[i].Post.find_local(1).message()).toEqual('changed')
+          }
+        });
+
+        // Make sure we're still running
+        waits(1000);
+        runs(function() {
+          expect(remote_get('Post', 1, 'message')).toEqual('changed')
+        });
+
+      });
+    
+    
+    });
+    
+    
+    // it("should update associations", function() {
+    //   var bob = Account.find_local(1);
+    //   var bobs_post = Post.find_local(1);
+    //   
+    // });
+
+  })
+  
+});
+
+
+</script>
+
+
+
+
+
+
+<script type="text/javascript">
+  jasmine.getEnv().addReporter(new jasmine.TrivialReporter());
+  jasmine.getEnv().execute();
+</script>
+
+

@@ -1,0 +1,15 @@
+bob:
+  id: 1
+  name: Bob Johnson
+  login: bob
+  email: bob@example.com
+  password: bobs_password
+  updated_at: "2010-01-01"
+alice:
+  id: 2
+  name: Alice Smith
+  login: alice
+  email: alice@example.com
+  password: alices_password
+  updated_at: "2010-01-01"
+  

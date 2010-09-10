@@ -1,0 +1,12 @@
+
+post_1:
+  id: 1
+  account_id: 1
+  message: "this is post_1"
+  updated_at: "2010-01-01"
+  
+post_2:
+  id: 2
+  account_id: 2
+  message: "this is post_2"
+  updated_at: "2010-01-01"

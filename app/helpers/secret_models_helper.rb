@@ -1,0 +1,2 @@
+module SecretModelsHelper
+end

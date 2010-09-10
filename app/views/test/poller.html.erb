@@ -1,0 +1,18 @@
+<script type="text/javascript" src="/jr/sjs"></script>
+
+<script>
+  $(function() {
+    
+    // Setup JR
+    var bundle = <%=raw(@bob.jr_bundle.to_json)%>;
+    ModelUtils.adapter.parse_bundle(bundle);
+    
+    ModelUtils.adapter.start_polling();
+    
+  })
+
+</script>
+
+<p>
+  Hi, I'm polling. Don't mind me.
+</p>

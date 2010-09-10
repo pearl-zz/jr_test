@@ -1,0 +1,27 @@
+comment_1:
+  id: 1
+  account_id: 2
+  post_id: 1
+  message: This comment 1 by alice on 1
+  updated_at: "2010-01-01"
+      
+comment_2:
+  id: 2
+  account_id: 1
+  post_id: 1
+  message: This comment 2 by bob on 1
+  updated_at: "2010-01-01"
+      
+comment_3:
+  id: 3
+  account_id: 2
+  post_id: 2
+  message: This comment 3 by alice on 2
+  updated_at: "2010-01-01"
+      
+comment_4:
+  id: 4
+  account_id: 1
+  post_id: 2
+  message: This comment 4 by bob on 2
+  updated_at: "2010-01-01"
