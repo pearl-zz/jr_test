@@ -6,7 +6,7 @@ class Account < ActiveRecord::Base
   
   jr_model :fields => [:name, :login, :email]
   jr_include_association :posts, :when => :first_order
-  jr_include_association :comments, :when => :first_order
+  jr_include_association :comments, :when => :always
   
   jr_before_serialize :add_stuff_to_bundle 
   
